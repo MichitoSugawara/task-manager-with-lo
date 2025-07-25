@@ -31,6 +31,8 @@
 - **Task Status Management**: Toggle completion status securely
 - **Task Organization**: Filter by all/active/completed with persistent state
 - **Secure Task Deletion**: Remove tasks with proper authentication checks
+- **Shared Task Viewing**: View tasks created by other users in read-only mode
+- **Task Attribution**: Clear indication of task ownership and creation details
 
 ### Security Features
 - **Session Validation**: Automatic session expiry and re-authentication prompts
