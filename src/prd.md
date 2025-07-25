@@ -41,10 +41,12 @@
 
 ### Advanced Task Management (Premium Users)
 - **Enhanced Task Creation**: Create tasks with projects, priorities, due dates, and assignees
+- **Private Tasks**: Create completely private tasks that are not shared with anyone and remain hidden from all collaboration features
+- **Task Privacy Control**: Toggle between personal (shareable) and private (completely hidden) task creation
 - **Task Dependencies**: Link related tasks and track completion flows
 - **Task Templates**: Save and reuse common task structures
 - **Bulk Operations**: Select and modify multiple tasks at once
-- **Advanced Filtering**: Filter by assignee, project, priority, due date
+- **Advanced Filtering**: Filter by assignee, project, priority, due date, and privacy level
 - **Task History**: Track all changes and updates to tasks over time
 - **File Attachments**: Attach documents and images to tasks (simulated)
 
@@ -62,12 +64,14 @@
 - **Payment Persistence**: Payment status stored securely and validated across sessions
 
 ### Task Management (Post-Authentication & Payment)
-- **Premium Task Creation**: Add tasks only available to paying users
+- **Premium Task Creation**: Add personal and private tasks only available to paying users
+- **Private Task Management**: Create tasks that are completely hidden and not shared in any collaboration features
+- **Task Privacy Controls**: Choose between personal (shareable) and private (hidden) when creating tasks
 - **Task Status Management**: Toggle completion status securely for premium users
-- **Task Organization**: Filter by all/active/completed with persistent state
+- **Task Organization**: Filter by all/active/completed with persistent state across personal and private tasks
 - **Secure Task Deletion**: Remove tasks with proper authentication and payment checks
-- **Shared Task Viewing**: View tasks created by other users in read-only mode
-- **Task Attribution**: Clear indication of task ownership and creation details
+- **Shared Task Viewing**: View tasks created by other users in read-only mode (excluding private tasks)
+- **Task Attribution**: Clear indication of task ownership, creation details, and privacy status
 
 ### Security Features
 - **Session Validation**: Automatic session expiry and re-authentication prompts

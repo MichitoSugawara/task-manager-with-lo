@@ -32,6 +32,7 @@ interface Task {
   projectId?: string
   priority: 'low' | 'medium' | 'high'
   dueDate?: number
+  isPrivate?: boolean // New field for private tasks
   authorInfo?: {
     login: string
     avatarUrl: string
@@ -106,6 +107,8 @@ interface PaymentState {
 function App() {
   // Personal tasks: Tasks created by the current user, fully editable
   const [personalTasks, setPersonalTasks] = useKV<Task[]>('user-tasks', [])
+  // Private tasks: Completely private tasks not shared anywhere
+  const [privateTasks, setPrivateTasks] = useKV<Task[]>('private-tasks', [])
   // Shared tasks: Tasks created by all users, read-only for non-owners
   const [sharedTasks, setSharedTasks] = useKV<Task[]>('shared-tasks', [])
   // Teams: User's teams and team management
@@ -115,7 +118,7 @@ function App() {
   const [paymentState, setPaymentState] = useKV<PaymentState>('payment-state', { isPremium: false, paymentDate: null, expiryDate: null })
   
   // UI State
-  const [currentView, setCurrentView] = useState<'personal' | 'teams' | 'analytics'>('personal')
+  const [currentView, setCurrentView] = useState<'personal' | 'private' | 'teams' | 'analytics'>('personal')
   const [selectedTeam, setSelectedTeam] = useState<string | null>(null)
   const [selectedProject, setSelectedProject] = useState<string | null>(null)
   const [newTaskTitle, setNewTaskTitle] = useState('')
@@ -123,6 +126,7 @@ function App() {
   const [newTaskPriority, setNewTaskPriority] = useState<'low' | 'medium' | 'high'>('medium')
   const [newTaskAssignee, setNewTaskAssignee] = useState<string>('')
   const [newTaskDueDate, setNewTaskDueDate] = useState<Date | undefined>()
+  const [newTaskIsPrivate, setNewTaskIsPrivate] = useState(false)
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'assigned-to-me' | 'created-by-me'>('all')
   const [user, setUser] = useState<UserInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -218,6 +222,7 @@ function App() {
     setAuthState({ isAuthenticated: false, sessionExpiry: 0 })
     setUser(null)
     setPersonalTasks([]) // Clear personal tasks on logout for security
+    setPrivateTasks([]) // Clear private tasks on logout for security
     toast.success('Logged out successfully')
   }
 
@@ -387,7 +392,7 @@ function App() {
       mentions: extractMentions(newComment)
     }
 
-    // Update task with new comment
+    // Update task with new comment in personal tasks
     setPersonalTasks(current =>
       current.map(task =>
         task.id === taskId
@@ -396,6 +401,16 @@ function App() {
       )
     )
 
+    // Update task with new comment in private tasks
+    setPrivateTasks(current =>
+      current.map(task =>
+        task.id === taskId
+          ? { ...task, comments: [...(task.comments || []), comment] }
+          : task
+      )
+    )
+
+    // Update task with new comment in shared tasks
     setSharedTasks(current =>
       current.map(task =>
         task.id === taskId
@@ -472,6 +487,7 @@ function App() {
       projectId: selectedProject || undefined,
       priority: newTaskPriority,
       dueDate: newTaskDueDate?.getTime(),
+      isPrivate: newTaskIsPrivate,
       authorInfo: {
         login: user.login,
         avatarUrl: user.avatarUrl
@@ -480,16 +496,24 @@ function App() {
       comments: []
     }
 
-    // Add to personal tasks
-    setPersonalTasks((currentTasks) => [newTask, ...currentTasks])
-    
-    // Add to shared tasks for others to see
-    setSharedTasks((currentSharedTasks) => {
-      // Check if task from this user already exists to avoid duplicates
-      const existingTask = currentSharedTasks.find(task => task.id === newTask.id)
-      if (existingTask) return currentSharedTasks
-      return [newTask, ...currentSharedTasks]
-    })
+    // Add to private tasks if marked as private
+    if (newTaskIsPrivate) {
+      setPrivateTasks((currentTasks) => [newTask, ...currentTasks])
+      toast.success('Private task added successfully')
+    } else {
+      // Add to personal tasks
+      setPersonalTasks((currentTasks) => [newTask, ...currentTasks])
+      
+      // Add to shared tasks for others to see (only if not private)
+      setSharedTasks((currentSharedTasks) => {
+        // Check if task from this user already exists to avoid duplicates
+        const existingTask = currentSharedTasks.find(task => task.id === newTask.id)
+        if (existingTask) return currentSharedTasks
+        return [newTask, ...currentSharedTasks]
+      })
+      
+      toast.success('Task added successfully')
+    }
     
     // Reset form
     setNewTaskTitle('')
@@ -497,7 +521,7 @@ function App() {
     setNewTaskPriority('medium')
     setNewTaskAssignee('')
     setNewTaskDueDate(undefined)
-    toast.success('Task added successfully')
+    setNewTaskIsPrivate(false)
   }
 
   const toggleTask = (taskId: string) => {
@@ -506,29 +530,42 @@ function App() {
       return
     }
 
-    // Only allow toggling personal tasks
+    // Check if it's a personal task
     const isPersonalTask = personalTasks.some(task => task.id === taskId && task.createdBy === user.login)
-    if (!isPersonalTask) {
+    // Check if it's a private task
+    const isPrivateTask = privateTasks.some(task => task.id === taskId && task.createdBy === user.login)
+    
+    if (!isPersonalTask && !isPrivateTask) {
       toast.error('You can only modify your own tasks')
       return
     }
 
-    setPersonalTasks((currentTasks) =>
-      currentTasks.map(task =>
-        task.id === taskId
-          ? { ...task, completed: !task.completed }
-          : task
+    if (isPrivateTask) {
+      setPrivateTasks((currentTasks) =>
+        currentTasks.map(task =>
+          task.id === taskId
+            ? { ...task, completed: !task.completed }
+            : task
+        )
       )
-    )
+    } else {
+      setPersonalTasks((currentTasks) =>
+        currentTasks.map(task =>
+          task.id === taskId
+            ? { ...task, completed: !task.completed }
+            : task
+        )
+      )
 
-    // Update in shared tasks as well
-    setSharedTasks((currentSharedTasks) =>
-      currentSharedTasks.map(task =>
-        task.id === taskId && task.createdBy === user.login
-          ? { ...task, completed: !task.completed }
-          : task
+      // Update in shared tasks as well
+      setSharedTasks((currentSharedTasks) =>
+        currentSharedTasks.map(task =>
+          task.id === taskId && task.createdBy === user.login
+            ? { ...task, completed: !task.completed }
+            : task
+        )
       )
-    )
+    }
   }
 
   const deleteTask = (taskId: string) => {
@@ -537,19 +574,26 @@ function App() {
       return
     }
 
-    // Only allow deleting personal tasks
+    // Check if it's a personal task
     const isPersonalTask = personalTasks.some(task => task.id === taskId && task.createdBy === user.login)
-    if (!isPersonalTask) {
+    // Check if it's a private task
+    const isPrivateTask = privateTasks.some(task => task.id === taskId && task.createdBy === user.login)
+    
+    if (!isPersonalTask && !isPrivateTask) {
       toast.error('You can only delete your own tasks')
       return
     }
 
-    setPersonalTasks((currentTasks) => currentTasks.filter(task => task.id !== taskId))
-    
-    // Remove from shared tasks as well
-    setSharedTasks((currentSharedTasks) => 
-      currentSharedTasks.filter(task => !(task.id === taskId && task.createdBy === user.login))
-    )
+    if (isPrivateTask) {
+      setPrivateTasks((currentTasks) => currentTasks.filter(task => task.id !== taskId))
+    } else {
+      setPersonalTasks((currentTasks) => currentTasks.filter(task => task.id !== taskId))
+      
+      // Remove from shared tasks as well
+      setSharedTasks((currentSharedTasks) => 
+        currentSharedTasks.filter(task => !(task.id === taskId && task.createdBy === user.login))
+      )
+    }
     
     toast.success('Task deleted')
   }
@@ -564,6 +608,8 @@ function App() {
     
     if (currentView === 'personal') {
       baseTasks = personalTasks
+    } else if (currentView === 'private') {
+      baseTasks = privateTasks
     } else if (currentView === 'teams' && selectedTeam) {
       // Show tasks from selected team
       baseTasks = [...personalTasks, ...sharedTasks].filter(task => 
@@ -771,10 +817,14 @@ function App() {
 
         {/* Main Navigation */}
         <Tabs value={currentView} onValueChange={(value) => setCurrentView(value as typeof currentView)} className="mb-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="personal" className="flex items-center gap-2">
               <User className="h-4 w-4" />
               Personal Tasks
+            </TabsTrigger>
+            <TabsTrigger value="private" className="flex items-center gap-2">
+              <Lock className="h-4 w-4" />
+              Private Tasks
             </TabsTrigger>
             <TabsTrigger value="teams" className="flex items-center gap-2" disabled={!paymentState.isPremium}>
               <Users className="h-4 w-4" />
@@ -800,6 +850,36 @@ function App() {
               setNewTaskPriority={setNewTaskPriority}
               newTaskDueDate={newTaskDueDate}
               setNewTaskDueDate={setNewTaskDueDate}
+              newTaskIsPrivate={newTaskIsPrivate}
+              setNewTaskIsPrivate={setNewTaskIsPrivate}
+              filter={filter}
+              setFilter={setFilter}
+              onAddTask={addTask}
+              onToggleTask={toggleTask}
+              onDeleteTask={deleteTask}
+              onOpenTaskDetails={openTaskDetails}
+              handleKeyPress={handleKeyPress}
+              isPremium={paymentState.isPremium}
+              currentUser={user}
+              getPriorityColor={getPriorityColor}
+              getPriorityIcon={getPriorityIcon}
+            />
+          </TabsContent>
+
+          {/* Private Tasks Tab */}
+          <TabsContent value="private" className="space-y-6">
+            <PrivateTasksView 
+              tasks={privateTasks}
+              newTaskTitle={newTaskTitle}
+              setNewTaskTitle={setNewTaskTitle}
+              newTaskDescription={newTaskDescription}
+              setNewTaskDescription={setNewTaskDescription}
+              newTaskPriority={newTaskPriority}
+              setNewTaskPriority={setNewTaskPriority}
+              newTaskDueDate={newTaskDueDate}
+              setNewTaskDueDate={setNewTaskDueDate}
+              newTaskIsPrivate={newTaskIsPrivate}
+              setNewTaskIsPrivate={setNewTaskIsPrivate}
               filter={filter}
               setFilter={setFilter}
               onAddTask={addTask}
@@ -855,6 +935,7 @@ function App() {
           <TabsContent value="analytics" className="space-y-6">
             <AnalyticsView 
               personalTasks={personalTasks}
+              privateTasks={privateTasks}
               userTeams={userTeams}
               currentUser={user}
             />
@@ -1284,7 +1365,7 @@ interface TaskListProps {
   currentUser: UserInfo | null
 }
 
-function TaskList({ tasks, onToggle, onDelete, currentUser, onOpenDetails, getPriorityColor, getPriorityIcon, showTeamInfo }: any) {
+function TaskList({ tasks, onToggle, onDelete, currentUser, onOpenDetails, getPriorityColor, getPriorityIcon, showTeamInfo, isPrivateView }: any) {
   return (
     <div className="space-y-3">
       <AnimatePresence mode="popLayout">
@@ -1320,6 +1401,12 @@ function TaskList({ tasks, onToggle, onDelete, currentUser, onOpenDetails, getPr
                         >
                           {task.title}
                         </label>
+                        {task.isPrivate && (
+                          <Badge variant="outline" className="text-xs bg-primary/10 text-primary border-primary/20">
+                            <Lock className="h-3 w-3 mr-1" />
+                            Private
+                          </Badge>
+                        )}
                         {task.priority && (
                           <Badge className={`${getPriorityColor(task.priority)} text-xs`}>
                             {getPriorityIcon(task.priority)}
@@ -1370,7 +1457,7 @@ function TaskList({ tasks, onToggle, onDelete, currentUser, onOpenDetails, getPr
                             <span>{task.comments.length}</span>
                           </div>
                         )}
-                        {!isOwnTask && (
+                        {!isOwnTask && !isPrivateView && (
                           <Badge variant="outline" className="text-xs">
                             Read-only
                           </Badge>
@@ -1412,8 +1499,15 @@ function TaskList({ tasks, onToggle, onDelete, currentUser, onOpenDetails, getPr
         <Card>
           <CardContent className="py-12 text-center">
             <div className="text-muted-foreground">
-              <p className="text-lg font-medium mb-2">No tasks yet</p>
-              <p>Add some tasks to get started with your productivity journey!</p>
+              <p className="text-lg font-medium mb-2">
+                {isPrivateView ? 'No private tasks yet' : 'No tasks yet'}
+              </p>
+              <p>
+                {isPrivateView 
+                  ? 'Add some private tasks that only you can see!' 
+                  : 'Add some tasks to get started with your productivity journey!'
+                }
+              </p>
             </div>
           </CardContent>
         </Card>
@@ -1433,6 +1527,8 @@ function PersonalTasksView({
   setNewTaskPriority, 
   newTaskDueDate, 
   setNewTaskDueDate, 
+  newTaskIsPrivate,
+  setNewTaskIsPrivate,
   filter, 
   setFilter, 
   onAddTask, 
@@ -1526,6 +1622,18 @@ function PersonalTasksView({
                     </PopoverContent>
                   </Popover>
                 </div>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox 
+                      id="make-private" 
+                      checked={newTaskIsPrivate}
+                      onCheckedChange={setNewTaskIsPrivate}
+                    />
+                    <Label htmlFor="make-private" className="text-sm">
+                      Make this task private (won't be shared)
+                    </Label>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1549,6 +1657,168 @@ function PersonalTasksView({
             currentUser={currentUser}
             getPriorityColor={getPriorityColor}
             getPriorityIcon={getPriorityIcon}
+          />
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+
+// Private Tasks View Component
+function PrivateTasksView({ 
+  tasks, 
+  newTaskTitle, 
+  setNewTaskTitle, 
+  newTaskDescription, 
+  setNewTaskDescription, 
+  newTaskPriority, 
+  setNewTaskPriority, 
+  newTaskDueDate, 
+  setNewTaskDueDate, 
+  newTaskIsPrivate,
+  setNewTaskIsPrivate,
+  filter, 
+  setFilter, 
+  onAddTask, 
+  onToggleTask, 
+  onDeleteTask, 
+  onOpenTaskDetails, 
+  handleKeyPress, 
+  isPremium, 
+  currentUser, 
+  getPriorityColor, 
+  getPriorityIcon 
+}: any) {
+  const filteredTasks = tasks.filter((task: Task) => {
+    if (filter === 'active') return !task.completed
+    if (filter === 'completed') return task.completed
+    return true
+  })
+
+  const handleAddPrivateTask = () => {
+    // Set the task as private before adding
+    setNewTaskIsPrivate(true)
+    onAddTask()
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Private Tasks Info */}
+      <Card className="border-primary/20 bg-primary/5">
+        <CardContent className="p-4">
+          <div className="flex items-center gap-2 mb-2">
+            <Lock className="h-4 w-4 text-primary" />
+            <span className="font-medium text-primary">Private Tasks</span>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            These tasks are completely private and only visible to you. They won't appear in shared views or team collaboration.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Add Private Task Section */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
+            <Lock className="h-4 w-4" />
+            Add Private Task
+            {!isPremium && <Lock className="h-4 w-4 text-muted-foreground" />}
+          </CardTitle>
+          {!isPremium && (
+            <p className="text-sm text-muted-foreground">
+              Premium subscription required to add private tasks.
+            </p>
+          )}
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex gap-3">
+            <Input
+              placeholder={isPremium ? "What private task needs to be done?" : "Premium required to add tasks"}
+              value={newTaskTitle}
+              onChange={(e) => setNewTaskTitle(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleAddPrivateTask()
+                }
+              }}
+              className="flex-1"
+              disabled={!isPremium}
+            />
+            <Button onClick={handleAddPrivateTask} disabled={!isPremium}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Private Task
+            </Button>
+          </div>
+          
+          {isPremium && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Description</Label>
+                <Textarea
+                  placeholder="Private task description..."
+                  value={newTaskDescription}
+                  onChange={(e) => setNewTaskDescription(e.target.value)}
+                  className="min-h-[60px]"
+                />
+              </div>
+              <div className="space-y-3">
+                <div className="space-y-2">
+                  <Label>Priority</Label>
+                  <Select value={newTaskPriority} onValueChange={setNewTaskPriority}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low Priority</SelectItem>
+                      <SelectItem value="medium">Medium Priority</SelectItem>
+                      <SelectItem value="high">High Priority</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Due Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-start text-left font-normal">
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {newTaskDueDate ? format(newTaskDueDate, "PPP") : "Pick a date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0">
+                      <Calendar
+                        mode="single"
+                        selected={newTaskDueDate}
+                        onSelect={setNewTaskDueDate}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Task Filter */}
+      <Tabs value={filter} onValueChange={setFilter}>
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="all">All ({tasks.length})</TabsTrigger>
+          <TabsTrigger value="active">Active ({tasks.filter((t: Task) => !t.completed).length})</TabsTrigger>
+          <TabsTrigger value="completed">Completed ({tasks.filter((t: Task) => t.completed).length})</TabsTrigger>
+        </TabsList>
+        
+        <TabsContent value={filter} className="mt-4">
+          <TaskList 
+            tasks={filteredTasks} 
+            onToggle={onToggleTask} 
+            onDelete={onDeleteTask} 
+            onOpenDetails={onOpenTaskDetails}
+            currentUser={currentUser}
+            getPriorityColor={getPriorityColor}
+            getPriorityIcon={getPriorityIcon}
+            isPrivateView={true}
           />
         </TabsContent>
       </Tabs>
@@ -1807,16 +2077,22 @@ function TeamsView({
 }
 
 // Analytics View Component  
-function AnalyticsView({ personalTasks, userTeams, currentUser }: any) {
-  const totalTasks = personalTasks.length
-  const completedTasks = personalTasks.filter((task: Task) => task.completed).length
+function AnalyticsView({ personalTasks, privateTasks, userTeams, currentUser }: any) {
+  const allPersonalTasks = [...personalTasks, ...privateTasks]
+  const totalTasks = allPersonalTasks.length
+  const completedTasks = allPersonalTasks.filter((task: Task) => task.completed).length
   const activeTasks = totalTasks - completedTasks
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0
 
   const priorityStats = {
-    high: personalTasks.filter((task: Task) => task.priority === 'high').length,
-    medium: personalTasks.filter((task: Task) => task.priority === 'medium').length,
-    low: personalTasks.filter((task: Task) => task.priority === 'low').length
+    high: allPersonalTasks.filter((task: Task) => task.priority === 'high').length,
+    medium: allPersonalTasks.filter((task: Task) => task.priority === 'medium').length,
+    low: allPersonalTasks.filter((task: Task) => task.priority === 'low').length
+  }
+
+  const taskTypeStats = {
+    personal: personalTasks.length,
+    private: privateTasks.length
   }
 
   return (
@@ -1871,7 +2147,7 @@ function AnalyticsView({ personalTasks, userTeams, currentUser }: any) {
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
             <CardTitle>Priority Distribution</CardTitle>
@@ -1898,6 +2174,30 @@ function AnalyticsView({ personalTasks, userTeams, currentUser }: any) {
                   <span className="text-sm">Low Priority</span>
                 </div>
                 <span className="font-medium">{priorityStats.low}</span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Task Type Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm">Personal Tasks</span>
+                </div>
+                <span className="font-medium">{taskTypeStats.personal}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Lock className="h-4 w-4 text-primary" />
+                  <span className="text-sm">Private Tasks</span>
+                </div>
+                <span className="font-medium">{taskTypeStats.private}</span>
               </div>
             </div>
           </CardContent>
