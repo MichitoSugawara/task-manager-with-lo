@@ -2,25 +2,51 @@
 
 ## Core Purpose & Success
 
-**Mission Statement**: A premium task management application that combines secure authentication with payment-gated functionality, ensuring only paying users can create and manage tasks while maintaining data security and personalized productivity tracking.
+**Mission Statement**: A premium task management application with advanced team collaboration features, combining secure authentication and payment-gated functionality to deliver powerful team productivity tools for premium subscribers.
 
 **Success Indicators**: 
 - Users can securely log in and access the application
 - Payment integration restricts task creation to premium users only
+- Premium users can create and manage teams with full collaboration features
+- Team workspaces enable real-time collaboration and task assignment
+- Team communication flows seamlessly through comments and mentions
+- Advanced task organization with projects, priorities, and due dates
+- Team analytics provide insights into productivity and collaboration patterns
 - Authentication state persists across browser sessions (24-hour expiry)
 - Payment status is validated before allowing task operations
 - Seamless upgrade flow from free to premium access
-- Zero data leakage between different users
+- Zero data leakage between different users and teams
 
-**Experience Qualities**: Premium, Secure, Value-driven
+**Experience Qualities**: Premium, Collaborative, Strategic
 
 ## Project Classification & Approach
 
-**Complexity Level**: Light Application (authentication + task management with persistent state)
+**Complexity Level**: Complex Application (team management + task collaboration with advanced features)
 
-**Primary User Activity**: Creating and managing personal tasks with secure access control
+**Primary User Activity**: Creating, collaborating, and managing team tasks with advanced project organization
 
 ## Essential Features
+
+### Team Collaboration Features (Premium Only)
+- **Team Creation**: Premium users can create and manage teams
+- **Team Invitations**: Invite members via email/username with role management
+- **Team Workspaces**: Dedicated spaces for team task management
+- **Task Assignment**: Assign tasks to specific team members
+- **Task Comments**: Real-time commenting system with @mentions
+- **Project Organization**: Group tasks into projects with visual progress tracking
+- **Priority Levels**: High/Medium/Low priority task classification
+- **Due Date Management**: Set and track task deadlines with reminders
+- **Team Analytics**: Dashboard showing team productivity metrics
+- **Role-Based Permissions**: Owner/Admin/Member roles with appropriate access levels
+
+### Advanced Task Management (Premium Users)
+- **Enhanced Task Creation**: Create tasks with projects, priorities, due dates, and assignees
+- **Task Dependencies**: Link related tasks and track completion flows
+- **Task Templates**: Save and reuse common task structures
+- **Bulk Operations**: Select and modify multiple tasks at once
+- **Advanced Filtering**: Filter by assignee, project, priority, due date
+- **Task History**: Track all changes and updates to tasks over time
+- **File Attachments**: Attach documents and images to tasks (simulated)
 
 ### Authentication System
 - **Username/Password Login**: Traditional login with GitHub credentials validation
