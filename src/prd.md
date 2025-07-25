@@ -1,16 +1,18 @@
-# Task Manager with Authentication - Product Requirements Document
+# Premium Task Manager with Payment Integration - Product Requirements Document
 
 ## Core Purpose & Success
 
-**Mission Statement**: A secure, personal task management application that requires user authentication to protect individual task data and provide personalized productivity tracking.
+**Mission Statement**: A premium task management application that combines secure authentication with payment-gated functionality, ensuring only paying users can create and manage tasks while maintaining data security and personalized productivity tracking.
 
 **Success Indicators**: 
-- Users can securely log in and access only their personal tasks
+- Users can securely log in and access the application
+- Payment integration restricts task creation to premium users only
 - Authentication state persists across browser sessions (24-hour expiry)
-- Seamless integration with GitHub authentication for quick access
+- Payment status is validated before allowing task operations
+- Seamless upgrade flow from free to premium access
 - Zero data leakage between different users
 
-**Experience Qualities**: Secure, Personal, Streamlined
+**Experience Qualities**: Premium, Secure, Value-driven
 
 ## Project Classification & Approach
 
@@ -26,28 +28,36 @@
 - **Session Management**: 24-hour session persistence with automatic expiry
 - **Secure Logout**: Complete session termination and data clearing
 
-### Task Management (Post-Authentication)
-- **Personal Task Creation**: Add tasks tied to authenticated user
-- **Task Status Management**: Toggle completion status securely
+### Payment Integration
+- **Premium Access Control**: Task creation restricted to paying users only
+- **Payment Simulation**: Secure payment flow demonstration with validation
+- **Subscription Status**: Clear indication of premium vs. free account status
+- **Upgrade Prompts**: Seamless conversion flow for free users attempting restricted actions
+- **Payment Persistence**: Payment status stored securely and validated across sessions
+
+### Task Management (Post-Authentication & Payment)
+- **Premium Task Creation**: Add tasks only available to paying users
+- **Task Status Management**: Toggle completion status securely for premium users
 - **Task Organization**: Filter by all/active/completed with persistent state
-- **Secure Task Deletion**: Remove tasks with proper authentication checks
+- **Secure Task Deletion**: Remove tasks with proper authentication and payment checks
 - **Shared Task Viewing**: View tasks created by other users in read-only mode
 - **Task Attribution**: Clear indication of task ownership and creation details
 
 ### Security Features
 - **Session Validation**: Automatic session expiry and re-authentication prompts
+- **Payment Validation**: Secure verification of payment status before task operations
 - **Data Isolation**: Tasks are cleared on logout to prevent data access
-- **Authentication Guards**: All task operations require valid authentication
-- **Error Handling**: Graceful handling of authentication failures
+- **Authentication Guards**: All task operations require valid authentication and payment
+- **Error Handling**: Graceful handling of authentication and payment failures
 
 ## Design Direction
 
 ### Visual Tone & Identity
 **Emotional Response**: The design should evoke trust, security, and personal control over data. Users should feel confident their information is protected while maintaining the clean, productive aesthetic of a modern task manager.
 
-**Design Personality**: Professional, secure, and minimalist with subtle security indicators that don't overwhelm the interface.
+**Design Personality**: Premium, secure, and value-focused with clear payment status indicators and upgrade prompts that feel helpful rather than pushy.
 
-**Visual Metaphors**: Clean lines, locked states, and clear user identity indicators that reinforce security without creating anxiety.
+**Visual Metaphors**: Premium badges, locked/unlocked states, and clear value propositions that communicate the benefits of upgrading.
 
 ### Color Strategy
 **Color Scheme Type**: Monochromatic with blue accent tones to convey trust and security

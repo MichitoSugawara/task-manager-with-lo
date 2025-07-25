@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
-import { Plus, Trash2, User, SignOut, Github } from '@phosphor-icons/react'
+import { Plus, Trash2, User, SignOut, Github, CreditCard, Crown, Lock } from '@phosphor-icons/react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { toast } from 'sonner'
 
@@ -39,19 +39,35 @@ interface AuthState {
   sessionExpiry: number
 }
 
+interface PaymentState {
+  isPremium: boolean
+  paymentDate: number | null
+  expiryDate: number | null
+}
+
 function App() {
   // Personal tasks: Tasks created by the current user, fully editable
   const [personalTasks, setPersonalTasks] = useKV<Task[]>('user-tasks', [])
   // Shared tasks: Tasks created by all users, read-only for non-owners
   const [sharedTasks, setSharedTasks] = useKV<Task[]>('shared-tasks', [])
   const [authState, setAuthState] = useKV<AuthState>('auth-state', { isAuthenticated: false, sessionExpiry: 0 })
+  const [paymentState, setPaymentState] = useKV<PaymentState>('payment-state', { isPremium: false, paymentDate: null, expiryDate: null })
   const [newTaskTitle, setNewTaskTitle] = useState('')
   const [filter, setFilter] = useState<'all' | 'active' | 'completed'>('all')
   const [viewMode, setViewMode] = useState<'personal' | 'shared' | 'all'>('all')
   const [user, setUser] = useState<UserInfo | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [showLoginDialog, setShowLoginDialog] = useState(false)
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false)
+  const [showUpgradeDialog, setShowUpgradeDialog] = useState(false)
   const [loginForm, setLoginForm] = useState({ username: '', password: '' })
+  const [paymentForm, setPaymentForm] = useState({ 
+    cardNumber: '', 
+    expiryDate: '', 
+    cvv: '', 
+    name: '',
+    email: ''
+  })
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -61,6 +77,12 @@ function App() {
         try {
           const userInfo = await spark.user()
           setUser(userInfo)
+          
+          // Check if payment has expired
+          if (paymentState.isPremium && paymentState.expiryDate && paymentState.expiryDate < now) {
+            setPaymentState({ isPremium: false, paymentDate: null, expiryDate: null })
+            toast.error('Premium subscription expired. Please renew to continue adding tasks.')
+          }
         } catch (error) {
           console.error('Failed to load user:', error)
           // Session invalid, reset auth state
@@ -74,7 +96,7 @@ function App() {
       setIsLoading(false)
     }
     initializeAuth()
-  }, [authState.isAuthenticated, authState.sessionExpiry, setAuthState])
+  }, [authState.isAuthenticated, authState.sessionExpiry, paymentState.isPremium, paymentState.expiryDate, setAuthState, setPaymentState])
 
   const handleLogin = async () => {
     const { username, password } = loginForm
@@ -117,6 +139,53 @@ function App() {
     toast.success('Logged out successfully')
   }
 
+  const handlePayment = async () => {
+    const { cardNumber, expiryDate, cvv, name, email } = paymentForm
+    
+    if (!cardNumber.trim() || !expiryDate.trim() || !cvv.trim() || !name.trim() || !email.trim()) {
+      toast.error('Please fill in all payment fields')
+      return
+    }
+
+    // Basic validation
+    if (cardNumber.replace(/\s/g, '').length !== 16) {
+      toast.error('Please enter a valid 16-digit card number')
+      return
+    }
+
+    if (cvv.length !== 3) {
+      toast.error('Please enter a valid 3-digit CVV')
+      return
+    }
+
+    try {
+      setIsLoading(true)
+      
+      // Simulate payment processing
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Simulate successful payment
+      const now = Date.now()
+      const expiryDate = now + (30 * 24 * 60 * 60 * 1000) // 30 days from now
+      
+      setPaymentState({
+        isPremium: true,
+        paymentDate: now,
+        expiryDate: expiryDate
+      })
+      
+      setShowPaymentDialog(false)
+      setShowUpgradeDialog(false)
+      setPaymentForm({ cardNumber: '', expiryDate: '', cvv: '', name: '', email: '' })
+      toast.success('Payment successful! Welcome to Premium!')
+    } catch (error) {
+      console.error('Payment failed:', error)
+      toast.error('Payment failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleGitHubLogin = async () => {
     try {
       setIsLoading(true)
@@ -138,6 +207,22 @@ function App() {
     if (!authState.isAuthenticated || !user) {
       toast.error('Please log in to add tasks')
       setShowLoginDialog(true)
+      return
+    }
+
+    // Check premium status
+    if (!paymentState.isPremium) {
+      toast.error('Premium subscription required to add tasks')
+      setShowUpgradeDialog(true)
+      return
+    }
+
+    // Check if premium has expired
+    const now = Date.now()
+    if (paymentState.expiryDate && paymentState.expiryDate < now) {
+      setPaymentState({ isPremium: false, paymentDate: null, expiryDate: null })
+      toast.error('Premium subscription expired. Please renew to add tasks.')
+      setShowUpgradeDialog(true)
       return
     }
 
@@ -271,7 +356,7 @@ function App() {
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="w-full max-w-md mx-4">
           <CardHeader className="text-center">
-            <CardTitle className="text-2xl font-bold">Task Manager</CardTitle>
+            <CardTitle className="text-2xl font-bold">Premium Task Manager</CardTitle>
             <p className="text-muted-foreground">Please log in to access your tasks</p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -356,12 +441,30 @@ function App() {
         {/* Header with User Info */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-2xl font-bold text-foreground tracking-tight">Task Manager</h1>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Premium Task Manager</h1>
             <p className="text-muted-foreground">Stay organized and productive</p>
           </div>
           
           {user && (
             <div className="flex items-center gap-3">
+              {/* Premium Status Badge */}
+              {paymentState.isPremium ? (
+                <div className="flex items-center gap-2 bg-gradient-to-r from-yellow-400 to-yellow-600 text-white px-3 py-1 rounded-full text-sm font-medium">
+                  <Crown className="h-4 w-4" />
+                  Premium
+                </div>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowUpgradeDialog(true)}
+                  className="bg-gradient-to-r from-primary to-accent text-primary-foreground border-0 hover:opacity-90"
+                >
+                  <Crown className="h-4 w-4 mr-2" />
+                  Upgrade to Premium
+                </Button>
+              )}
+              
               <div className="text-right">
                 <p className="font-medium text-foreground">{user.login}</p>
                 <p className="text-sm text-muted-foreground">{user.email}</p>
@@ -387,19 +490,42 @@ function App() {
         {/* Add Task Section */}
         <Card className="mb-6">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold">Add New Task</CardTitle>
+            <CardTitle className="text-lg font-semibold flex items-center gap-2">
+              Add New Task
+              {!paymentState.isPremium && (
+                <Lock className="h-4 w-4 text-muted-foreground" />
+              )}
+            </CardTitle>
+            {!paymentState.isPremium && (
+              <p className="text-sm text-muted-foreground">
+                Premium subscription required to add tasks.{' '}
+                <Button 
+                  variant="link" 
+                  size="sm" 
+                  className="p-0 h-auto text-primary hover:underline"
+                  onClick={() => setShowUpgradeDialog(true)}
+                >
+                  Upgrade now
+                </Button>
+              </p>
+            )}
           </CardHeader>
           <CardContent>
             <div className="flex gap-3">
               <Input
                 id="new-task"
-                placeholder="What needs to be done?"
+                placeholder={paymentState.isPremium ? "What needs to be done?" : "Premium required to add tasks"}
                 value={newTaskTitle}
                 onChange={(e) => setNewTaskTitle(e.target.value)}
                 onKeyPress={handleKeyPress}
                 className="flex-1"
+                disabled={!paymentState.isPremium}
               />
-              <Button onClick={addTask} className="shrink-0">
+              <Button 
+                onClick={addTask} 
+                className="shrink-0"
+                disabled={!paymentState.isPremium}
+              >
                 <Plus className="h-4 w-4 mr-2" />
                 Add Task
               </Button>
@@ -513,6 +639,175 @@ function App() {
           </Card>
         )}
       </div>
+
+      {/* Upgrade to Premium Dialog */}
+      <Dialog open={showUpgradeDialog} onOpenChange={setShowUpgradeDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Crown className="h-5 w-5 text-yellow-500" />
+              Upgrade to Premium
+            </DialogTitle>
+            <DialogDescription>
+              Unlock unlimited task creation and premium features
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                <span className="text-sm">Unlimited task creation</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                <span className="text-sm">Premium support</span>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="h-2 w-2 rounded-full bg-green-500"></div>
+                <span className="text-sm">Advanced task organization</span>
+              </div>
+            </div>
+            
+            <div className="bg-gradient-to-r from-primary/10 to-accent/10 p-4 rounded-lg">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-foreground">$9.99</div>
+                <div className="text-sm text-muted-foreground">per month</div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              <Button 
+                onClick={() => {
+                  setShowUpgradeDialog(false)
+                  setShowPaymentDialog(true)
+                }} 
+                className="flex-1 bg-gradient-to-r from-primary to-accent"
+              >
+                <CreditCard className="h-4 w-4 mr-2" />
+                Subscribe Now
+              </Button>
+              <Button onClick={() => setShowUpgradeDialog(false)} variant="outline">
+                Maybe Later
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Dialog */}
+      <Dialog open={showPaymentDialog} onOpenChange={setShowPaymentDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Premium Subscription Payment</DialogTitle>
+            <DialogDescription>
+              Complete your payment to activate Premium features
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="card-number">Card Number</Label>
+              <Input
+                id="card-number"
+                placeholder="1234 5678 9012 3456"
+                value={paymentForm.cardNumber}
+                onChange={(e) => {
+                  // Format card number with spaces
+                  let value = e.target.value.replace(/\s/g, '').replace(/\D/g, '')
+                  value = value.replace(/(\d{4})(?=\d)/g, '$1 ')
+                  if (value.length <= 19) {
+                    setPaymentForm(prev => ({ ...prev, cardNumber: value }))
+                  }
+                }}
+                maxLength={19}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="expiry">Expiry Date</Label>
+                <Input
+                  id="expiry"
+                  placeholder="MM/YY"
+                  value={paymentForm.expiryDate}
+                  onChange={(e) => {
+                    let value = e.target.value.replace(/\D/g, '')
+                    if (value.length >= 2) {
+                      value = value.substring(0, 2) + '/' + value.substring(2, 4)
+                    }
+                    if (value.length <= 5) {
+                      setPaymentForm(prev => ({ ...prev, expiryDate: value }))
+                    }
+                  }}
+                  maxLength={5}
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="cvv">CVV</Label>
+                <Input
+                  id="cvv"
+                  placeholder="123"
+                  value={paymentForm.cvv}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, '')
+                    if (value.length <= 3) {
+                      setPaymentForm(prev => ({ ...prev, cvv: value }))
+                    }
+                  }}
+                  maxLength={3}
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="cardholder-name">Cardholder Name</Label>
+              <Input
+                id="cardholder-name"
+                placeholder="John Doe"
+                value={paymentForm.name}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                type="email"
+                placeholder="john@example.com"
+                value={paymentForm.email}
+                onChange={(e) => setPaymentForm(prev => ({ ...prev, email: e.target.value }))}
+              />
+            </div>
+            
+            <div className="flex gap-2 pt-4">
+              <Button 
+                onClick={handlePayment} 
+                className="flex-1 bg-gradient-to-r from-primary to-accent"
+                disabled={isLoading}
+              >
+                {isLoading ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                ) : (
+                  <CreditCard className="h-4 w-4 mr-2" />
+                )}
+                {isLoading ? 'Processing...' : 'Pay $9.99'}
+              </Button>
+              <Button 
+                onClick={() => setShowPaymentDialog(false)} 
+                variant="outline"
+                disabled={isLoading}
+              >
+                Cancel
+              </Button>
+            </div>
+            
+            <p className="text-xs text-muted-foreground text-center">
+              This is a demo payment form. No real charges will be made.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
